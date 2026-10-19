@@ -94,9 +94,9 @@
       size: 'md',
       confirmText: data.mode === 'edit' ? '保存节点' : '新增节点',
       dialogProps: { appendToBody: true, closeOnClickModal: false },
-      onConfirm: async (current) => {
+      onConfirm: async () => {
         await formRef.value?.validate()
-        return props.onSubmit({ ...current })
+        return props.onSubmit({ ...form })
       }
     })
   }

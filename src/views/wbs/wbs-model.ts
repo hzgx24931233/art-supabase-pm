@@ -29,6 +29,21 @@ export function flattenWbsTree(tree: WbsTreeNode[]): WbsTreeNode[] {
   return tree.flatMap((node) => [node, ...flattenWbsTree(node.children)])
 }
 
+export function collectWbsSubtreeIds(nodes: WbsNode[], nodeId: string): Set<string> {
+  const ids = new Set<string>([nodeId])
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const node of nodes) {
+      if (node.parent_id && ids.has(node.parent_id) && !ids.has(node.id)) {
+        ids.add(node.id)
+        changed = true
+      }
+    }
+  }
+  return ids
+}
+
 export function hasWbsCycle(nodes: WbsNode[], nodeId: string, parentId: string | null): boolean {
   const parentMap = new Map(nodes.map((node) => [node.id, node.parent_id]))
   let cursor = parentId

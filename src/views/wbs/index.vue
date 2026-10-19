@@ -24,6 +24,7 @@
       >
         <div class="wbs-page__filters">
           <ElCheckbox v-model="state.milestonesOnly">仅里程碑</ElCheckbox>
+          <ElCheckbox v-model="state.showArchived">显示已归档</ElCheckbox>
           <ElRadioGroup v-model="state.viewMode" size="small"
             ><ElRadioButton value="tree">树形视图</ElRadioButton
             ><ElRadioButton value="table">清单视图</ElRadioButton></ElRadioGroup
@@ -152,8 +153,21 @@
                 <ArtSvgIcon v-if="!selectedNode" icon="ri:check-line" aria-hidden="true" />
               </button>
               <ElScrollbar class="wbs-page__tree-scroll">
+                <div v-if="!filteredNodes.length" class="wbs-page__tree-empty">
+                  <ArtEmptyState
+                    size="compact"
+                    :title="state.workspace.nodes.length ? '当前筛选没有节点' : '还没有 WBS 节点'"
+                    :description="
+                      state.workspace.nodes.length
+                        ? archivedNodeCount && !state.showArchived
+                          ? `当前版本有 ${archivedNodeCount} 个节点已归档，勾选“显示已归档”即可查看并恢复。`
+                          : '调整搜索关键字或取消筛选条件后再试。'
+                        : '通过“复制标准模板”或“新增根节点”开始分解项目范围。'
+                    "
+                  />
+                </div>
                 <ElTree
-                  v-if="state.viewMode === 'tree'"
+                  v-if="state.viewMode === 'tree' && filteredNodes.length"
                   ref="treeRef"
                   node-key="id"
                   draggable
@@ -176,35 +190,48 @@
                       ><span
                         class="wbs-tree-node__name"
                         :class="{ 'is-disabled': data.status !== 'active' }"
+                        :title="data.name"
                         >{{ data.name }}</span
                       ><ElTag v-if="data.is_milestone" size="small" type="warning">里程碑</ElTag
+                      ><ElTag v-if="data.status === 'archived'" size="small" type="info"
+                        >已归档</ElTag
                       ><span class="wbs-tree-node__actions">
                         <ArtIconButton
-                          v-auth="'PmWbs:Add'"
-                          icon="ri:add-line"
-                          label="新增下级节点"
+                          v-if="data.status === 'archived'"
+                          v-auth="'PmWbs:Archive'"
+                          icon="ri:arrow-go-back-line"
+                          label="恢复节点"
                           :disabled="!editable"
-                          @click.stop="addNode(data.id)"
+                          @click.stop="restoreNode(data)"
                         />
-                        <ArtIconButton
-                          v-auth="'PmWbs:Edit'"
-                          icon="ri:edit-line"
-                          label="编辑节点"
-                          :disabled="!editable"
-                          @click.stop="selectNode(data)"
-                        />
-                        <ArtIconButton
-                          v-auth="'PmWbs:Delete'"
-                          icon="ri:delete-bin-line"
-                          label="删除节点"
-                          tone="danger"
-                          :disabled="!editable"
-                          @click.stop="deleteNode(data)"
-                        /> </span></div
+                        <template v-else>
+                          <ArtIconButton
+                            v-auth="'PmWbs:Add'"
+                            icon="ri:add-line"
+                            label="新增下级节点"
+                            :disabled="!editable"
+                            @click.stop="addNode(data.id)"
+                          />
+                          <ArtIconButton
+                            v-auth="'PmWbs:Edit'"
+                            icon="ri:edit-line"
+                            label="编辑节点"
+                            :disabled="!editable"
+                            @click.stop="editNode(data)"
+                          />
+                          <ArtIconButton
+                            v-auth="'PmWbs:Delete'"
+                            icon="ri:delete-bin-line"
+                            label="删除节点"
+                            tone="danger"
+                            :disabled="!editable"
+                            @click.stop="deleteNode(data)"
+                          />
+                        </template> </span></div
                   ></template>
                 </ElTree>
                 <ArtTable
-                  v-else
+                  v-else-if="filteredNodes.length"
                   :data="filteredNodes"
                   :columns="tableColumns"
                   row-key="id"
@@ -221,7 +248,16 @@
                 <span v-if="selectedNode">{{ selectedNode.wbs_code }}</span>
               </div>
               <ElButton
-                v-if="selectedNode"
+                v-if="selectedNode?.status === 'archived'"
+                v-auth="'PmWbs:Archive'"
+                text
+                type="primary"
+                :disabled="!editable"
+                @click="restoreNode(selectedNode)"
+                >恢复节点</ElButton
+              >
+              <ElButton
+                v-else-if="selectedNode"
                 v-auth="'PmWbs:Edit'"
                 text
                 type="primary"
@@ -231,7 +267,20 @@
               >
             </div>
             <template v-if="selectedNode"
-              ><ArtForm
+              ><ElAlert
+                v-if="selectedNode.status === 'archived'"
+                type="info"
+                :closable="false"
+                show-icon
+                class="wbs-form__archived"
+                title="该节点已归档"
+                :description="
+                  editable
+                    ? '归档节点不参与范围分解展示，恢复后才会重新出现在结构树中。'
+                    : '当前版本不可编辑，切换或新建草稿版本后才能恢复。'
+                "
+              />
+              <ArtForm
                 v-model="selectedNode"
                 :items="nodeFormItems"
                 :span="24"
@@ -287,6 +336,7 @@
   import {
     ElButton,
     ElCheckbox,
+    ElAlert,
     ElInput,
     ElMessage,
     ElOption,
@@ -304,6 +354,7 @@
   import ArtForm, { type FormItem } from '@/components/core/forms/art-form/index.vue'
   import ArtPermissionGuard from '@/components/core/feedback/art-permission-guard/index.vue'
   import ArtSectionCard from '@/components/core/surfaces/art-section-card/index.vue'
+  import ArtEmptyState from '@/components/core/feedback/art-empty-state/index.vue'
   import ArtWorkspaceSplitter from '@/components/core/layouts/art-workspace-splitter/index.vue'
   import ArtTable from '@/components/core/tables/art-table/index.vue'
   import ArtIconButton from '@/components/core/widget/art-icon-button/index.vue'
@@ -314,7 +365,13 @@
     type BusinessWorkspaceTag
   } from '@/components/business/business-workspace-header/index.vue'
   import { normalizeNonNullableText } from '@/utils/form/normalize'
-  import { buildWbsTree, hasWbsCycle, nextWbsCode, type WbsTreeNode } from './wbs-model'
+  import {
+    buildWbsTree,
+    collectWbsSubtreeIds,
+    hasWbsCycle,
+    nextWbsCode,
+    type WbsTreeNode
+  } from './wbs-model'
   import {
     copyWbsTemplate,
     createWbsVersion,
@@ -337,6 +394,7 @@
     handleOpen: (data: WbsNodeDialogOpenData) => Promise<void>
   }
   const declaredPermissionCodes = [
+    'PmWbs:Archive',
     'PmWbs:Delete',
     'PmWbs:Move',
     'PmWbs:Reject',
@@ -357,6 +415,7 @@
     versionId: '',
     keyword: '',
     milestonesOnly: false,
+    showArchived: false,
     viewMode: 'tree' as 'tree' | 'table',
     loading: false,
     error: null as Error | null,
@@ -370,7 +429,7 @@
   })
   const selectedNode = ref<WbsNode | null>(null)
   const nodeDialogRef = ref<WbsNodeDialogExpose>()
-  const { confirmDelete } = useArtFeedback()
+  const { confirmAction, confirmDelete } = useArtFeedback()
   const boundaryDraft = reactive<{ included: string; excluded: string }>({
     included: '',
     excluded: ''
@@ -390,10 +449,12 @@
       cancelled: '已取消',
       superseded: '历史版本'
     })[status ?? 'draft'] ?? '未建立'
+  const nodeStatusLabel = (status: WbsNode['status']) =>
+    ({ active: '有效', disabled: '停用', archived: '已归档' })[status] ?? status
   const filteredNodes = computed(() =>
     state.workspace.nodes.filter(
       (node) =>
-        node.status !== 'archived' &&
+        (state.showArchived || node.status !== 'archived') &&
         (!state.keyword ||
           `${node.wbs_code}${node.name}${node.responsible_person ?? ''}`
             .toLowerCase()
@@ -401,12 +462,20 @@
         (!state.milestonesOnly || node.is_milestone)
     )
   )
+  const archivedNodeCount = computed(
+    () => state.workspace.nodes.filter((node) => node.status === 'archived').length
+  )
   const filteredTree = computed(() => buildWbsTree(filteredNodes.value))
   const tableColumns = [
     { prop: 'wbs_code', label: '编码', width: 110 },
     { prop: 'name', label: '工作名称', minWidth: 180 },
     { prop: 'responsible_person', label: '责任人', width: 100 },
-    { prop: 'status', label: '状态', width: 80 }
+    {
+      prop: 'status',
+      label: '状态',
+      width: 80,
+      formatter: (row: WbsNode) => nodeStatusLabel(row.status)
+    }
   ]
   const nodeFormItems = computed<FormItem[]>(() => [
     { label: '工作名称', key: 'name', type: 'input', props: { maxlength: 160 } },
@@ -434,14 +503,16 @@
     },
     {
       label: '工作节点',
-      value: state.workspace.nodes.length,
-      description: '范围分解节点',
+      value: state.workspace.nodes.filter((node) => node.status !== 'archived').length,
+      description: archivedNodeCount.value
+        ? `另有 ${archivedNodeCount.value} 个已归档`
+        : '范围分解节点',
       icon: 'ri:node-tree',
       tone: 'info'
     },
     {
       label: '里程碑',
-      value: state.workspace.nodes.filter((n) => n.is_milestone).length,
+      value: state.workspace.nodes.filter((n) => n.is_milestone && n.status !== 'archived').length,
       description: '关键交付节点',
       icon: 'ri:flag-line',
       tone: 'warning'
@@ -478,7 +549,7 @@
     state.error = null
     try {
       state.workspace = await fetchWbsWorkspace(state.projectId, state.versionId || undefined)
-      selectedNode.value = state.workspace.nodes[0] ?? null
+      selectedNode.value = state.workspace.nodes.find((node) => node.status !== 'archived') ?? null
       boundaryDraft.included =
         state.workspace.boundaries.find((item) => item.boundary_type === 'included')?.content ?? ''
       boundaryDraft.excluded =
@@ -524,21 +595,7 @@
   }
   async function deleteNode(node: WbsNode) {
     if (!editable.value) return
-    const descendants = new Set<string>([node.id])
-    let changed = true
-    while (changed) {
-      changed = false
-      for (const candidate of state.workspace.nodes) {
-        if (
-          candidate.parent_id &&
-          descendants.has(candidate.parent_id) &&
-          !descendants.has(candidate.id)
-        ) {
-          descendants.add(candidate.id)
-          changed = true
-        }
-      }
-    }
+    const descendants = collectWbsSubtreeIds(state.workspace.nodes, node.id)
     await confirmDelete(
       descendants.size > 1
         ? `确定删除“${node.name}”及其 ${descendants.size - 1} 个下级节点吗？`
@@ -548,6 +605,25 @@
       if (descendants.has(candidate.id)) candidate.status = 'archived'
     }
     if (selectedNode.value && descendants.has(selectedNode.value.id)) selectedNode.value = null
+    await save()
+  }
+  async function restoreNode(node: WbsNode) {
+    if (!editable.value) return
+    const restored = collectWbsSubtreeIds(state.workspace.nodes, node.id)
+    const archivedCount = state.workspace.nodes.filter(
+      (candidate) => restored.has(candidate.id) && candidate.status === 'archived'
+    ).length
+    await confirmAction(
+      archivedCount > 1
+        ? `确定恢复“${node.name}”及其 ${archivedCount - 1} 个已归档下级节点吗？`
+        : `确定恢复“${node.name}”吗？`,
+      '恢复节点确认',
+      { type: 'info', confirmButtonText: '恢复' }
+    )
+    for (const candidate of state.workspace.nodes) {
+      if (restored.has(candidate.id) && candidate.status === 'archived') candidate.status = 'active'
+    }
+    selectedNode.value = state.workspace.nodes.find((candidate) => candidate.id === node.id) ?? null
     await save()
   }
   const createNodeDraft = (parentId: string | null): WbsNode => ({
@@ -577,7 +653,10 @@
   }
   async function editNode(node: WbsNode) {
     if (!editable.value) return
-    await nodeDialogRef.value?.handleOpen({ mode: 'edit', node: { ...node } })
+    const target = state.workspace.nodes.find((item) => item.id === node.id)
+    if (!target) return
+    selectedNode.value = target
+    await nodeDialogRef.value?.handleOpen({ mode: 'edit', node: { ...target } })
   }
   async function saveNodeFromDialog(node: WbsNode): Promise<boolean> {
     if (!state.workspace.version || !editable.value) return false
@@ -699,7 +778,9 @@
     background: var(--art-bg-color);
   }
   .wbs-page__project {
+    flex: 0 1 260px;
     width: 260px;
+    min-width: 150px;
   }
   .wbs-page__topbar {
     display: grid;
@@ -714,8 +795,10 @@
   .wbs-page__version-summary,
   .wbs-page__actions {
     display: flex;
+    flex-wrap: nowrap;
     gap: var(--art-space-3);
     align-items: center;
+    min-width: 0;
   }
   .wbs-page__version-summary div {
     display: grid;
@@ -748,10 +831,8 @@
     overflow: hidden;
   }
   .wbs-page__workspace :deep(.art-section-card__scrollbar),
-  .wbs-page__workspace :deep(.art-section-card__scrollbar > .el-scrollbar__wrap),
   .wbs-page__workspace
-    :deep(.art-section-card__scrollbar > .el-scrollbar__wrap > .el-scrollbar__view),
-  .wbs-page__workspace :deep(.art-section-card__body) {
+    :deep(.art-section-card__scrollbar > .el-scrollbar__wrap > .el-scrollbar__view) {
     min-height: 0;
   }
   .wbs-page__workspace :deep(.art-section-card__scrollbar),
@@ -764,6 +845,21 @@
     min-height: 0;
     height: auto;
     overflow: hidden;
+  }
+  @media (height <= 820px) {
+    .wbs-page {
+      height: auto;
+      min-height: var(--art-full-height);
+      max-height: none;
+      overflow: visible;
+    }
+    .wbs-page__workspace {
+      flex: 0 0 auto;
+      max-height: none;
+    }
+    .wbs-page__workspace :deep(.art-section-card__body) {
+      grid-template-rows: auto auto minmax(360px, 1fr);
+    }
   }
   .wbs-page__filters {
     display: flex;
@@ -895,14 +991,29 @@
   .wbs-page__tree-scroll {
     flex: 1;
     min-height: 0;
+
+    :deep(.el-tree-node__content) {
+      height: auto;
+      min-height: 36px;
+    }
+  }
+  .wbs-page__tree-empty {
+    display: grid;
+    place-items: center;
+    min-height: 200px;
+  }
+  .wbs-form__archived {
+    margin-top: var(--art-space-3);
   }
   .wbs-tree-node {
+    position: relative;
     display: grid;
-    grid-template-columns: 20px 43px minmax(0, 1fr) auto auto;
+    grid-template-columns: 16px auto minmax(0, 1fr) auto;
     align-items: center;
-    gap: var(--art-space-2);
+    gap: 6px;
     width: 100%;
     min-width: 0;
+    padding-right: 0;
   }
   .wbs-tree-node__icon {
     display: grid;
@@ -924,14 +1035,28 @@
     text-decoration: line-through;
   }
   .wbs-tree-node__actions {
+    position: absolute;
+    top: 50%;
+    right: 4px;
     display: flex;
     gap: 2px;
+    padding-left: 8px;
+    background: linear-gradient(to right, transparent, var(--default-box-color) 8px);
     opacity: 0;
+    pointer-events: none;
+    transform: translateY(-50%);
     transition: opacity var(--art-motion-duration-fast);
   }
   .wbs-tree-node:hover .wbs-tree-node__actions,
   .wbs-tree-node:focus-within .wbs-tree-node__actions {
     opacity: 1;
+    pointer-events: auto;
+  }
+  @media (hover: none) {
+    .wbs-tree-node__actions {
+      opacity: 1;
+      pointer-events: auto;
+    }
   }
   .wbs-form {
     padding-top: var(--art-space-3);
@@ -965,6 +1090,11 @@
   }
   .w-full {
     width: 100%;
+  }
+  @media (width <= 1360px) {
+    .wbs-page__actions {
+      flex-wrap: wrap;
+    }
   }
   @media (width <= 900px) {
     .wbs-page {
