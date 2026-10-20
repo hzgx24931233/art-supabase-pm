@@ -82,5 +82,55 @@ export interface WbsTemplate {
   name: string
   category: string
   description: string | null
+  enabled: boolean
   node_count: number
+  create_time?: string | null
+  update_time?: string | null
+}
+
+export interface WbsTemplateNode {
+  id: string
+  template_id: string
+  parent_id: string | null
+  sort_order: number
+  wbs_code: string
+  name: string
+  description: string | null
+  deliverable_summary: string | null
+  unit: string | null
+  quality_standard: string | null
+  is_milestone: boolean
+  metadata: Record<string, unknown>
+}
+
+export interface WbsTemplateHeaderInput {
+  id?: string | null
+  name: string
+  category: string
+  description: string | null
+  enabled: boolean
+}
+
+export interface WbsTemplateNodeInput {
+  id: string
+  parent_id: string | null
+  sort_order: number
+  wbs_code: string
+  name: string
+  description: string | null
+  deliverable_summary: string | null
+  unit: string | null
+  quality_standard: string | null
+  is_milestone: boolean
+  metadata: Record<string, unknown>
+}
+
+export interface WbsTemplateSavePayload {
+  template: WbsTemplateHeaderInput
+  nodes: WbsTemplateNodeInput[]
+}
+
+export interface WbsTemplateSaveResult {
+  template: WbsTemplate
+  nodes: WbsTemplateNode[]
 }

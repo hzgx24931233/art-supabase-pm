@@ -10,74 +10,7 @@
           :tags="tags"
           :metrics="metrics"
         >
-        </BusinessWorkspaceHeader>
-      </div>
-      <ArtSectionCard
-        class="wbs-page__workspace"
-        :show-scrollbar="false"
-        :loading="state.loading"
-        :error="state.error"
-        :empty="!state.loading && !state.error && !state.workspace.version"
-        empty-title="暂无 WBS 版本"
-        empty-description="选择项目后新建 WBS 草稿。"
-        @retry="loadWorkspace"
-      >
-        <div class="wbs-page__filters">
-          <ElCheckbox v-model="state.milestonesOnly">仅里程碑</ElCheckbox>
-          <ElCheckbox v-model="state.showArchived">显示已归档</ElCheckbox>
-          <ElRadioGroup v-model="state.viewMode" size="small"
-            ><ElRadioButton value="tree">树形视图</ElRadioButton
-            ><ElRadioButton value="table">清单视图</ElRadioButton></ElRadioGroup
-          >
-          <div class="wbs-page__actions">
-            <ElSelect
-              v-model="state.projectId"
-              class="wbs-page__project"
-              placeholder="选择项目"
-              @change="handleProjectChange"
-            >
-              <ElOption
-                v-for="item in state.projects"
-                :key="item.id"
-                :label="`${item.projectName} · ${item.projectCode}`"
-                :value="item.id"
-              />
-            </ElSelect>
-            <ElSelect
-              v-model="state.versionId"
-              class="wbs-page__version"
-              placeholder="选择版本"
-              :disabled="!state.versions.length"
-              @change="loadWorkspace"
-            >
-              <ElOption
-                v-for="item in state.versions"
-                :key="item.id"
-                :label="`V${item.version_no} · ${statusLabel(item.status)}`"
-                :value="item.id"
-              />
-            </ElSelect>
-            <ElButton
-              v-auth="'PmWbs:ManageVersion'"
-              type="primary"
-              :disabled="!state.projectId"
-              @click="createDraft"
-              >新建版本</ElButton
-            >
-            <ArtExcelImport
-              v-auth="'PmWbs:Import'"
-              :disabled="!editable"
-              @import-success="handleImport"
-            />
-            <ArtExcelExport
-              v-auth="'PmWbs:Export'"
-              :data="exportRows"
-              filename="WBS工作分解"
-              button-text="导出清单"
-            />
-            <ElButton v-auth="'PmWbs:ManageTemplate'" :disabled="!editable" @click="copyTemplate"
-              >复制标准模板</ElButton
-            >
+          <template #actions>
             <ElButton
               v-auth="'PmWbs:Submit'"
               type="warning"
@@ -92,8 +25,90 @@
               @click="transition('approve')"
               >审批通过</ElButton
             >
+          </template>
+        </BusinessWorkspaceHeader>
+      </div>
+      <ArtSectionCard
+        class="wbs-page__workspace"
+        :show-scrollbar="false"
+        :loading="state.loading"
+        :error="state.error"
+        :empty="!state.loading && !state.error && !state.workspace.version"
+        empty-title="暂无 WBS 版本"
+        empty-description="选择项目后新建 WBS 草稿。"
+        @retry="loadWorkspace"
+      >
+        <div class="wbs-page__filters">
+          <div class="wbs-page__filter-options">
+            <ElCheckbox v-model="state.milestonesOnly">仅里程碑</ElCheckbox>
+            <ElCheckbox v-model="state.showArchived">显示已归档</ElCheckbox>
+          </div>
+          <div class="wbs-page__actions">
+            <div class="wbs-page__selectors">
+              <strong>项目名称</strong>
+              <ElSelect
+                v-model="state.projectId"
+                class="wbs-page__project"
+                placeholder="选择项目"
+                @change="handleProjectChange"
+              >
+                <ElOption
+                  v-for="item in state.projects"
+                  :key="item.id"
+                  :label="`${item.projectName} · ${item.projectCode}`"
+                  :value="item.id"
+                />
+              </ElSelect>
+              <strong>版本</strong>
+              <ElSelect
+                v-model="state.versionId"
+                class="wbs-page__version"
+                placeholder="选择版本"
+                :disabled="!state.versions.length"
+                @change="loadWorkspace"
+              >
+                <ElOption
+                  v-for="item in state.versions"
+                  :key="item.id"
+                  :label="`V${item.version_no} · ${statusLabel(item.status)}`"
+                  :value="item.id"
+                />
+              </ElSelect>
+            </div>
+            <div class="wbs-page__management-actions">
+              <ElButton
+                v-auth="'PmWbs:ManageVersion'"
+                type="primary"
+                :disabled="!state.projectId"
+                @click="createDraft"
+                >新建版本</ElButton
+              >
+              <ElButton
+                v-auth="'PmWbs:ManageTemplate'"
+                :disabled="!editable"
+                @click="openTemplateApply"
+                >套用模板</ElButton
+              >
+              <ElButton v-auth="'PmWbs:ManageTemplate'" @click="openTemplateManager"
+                >模板管理</ElButton
+              >
+              <ArtExcelImport
+                v-auth="'PmWbs:Import'"
+                :disabled="!editable"
+                :button-props="{ type: 'default' }"
+                @import-success="handleImport"
+              />
+              <ArtExcelExport
+                v-auth="'PmWbs:Export'"
+                type="default"
+                :data="exportRows"
+                filename="WBS工作分解"
+                button-text="导出清单"
+              />
+            </div>
           </div>
         </div>
+
         <ArtWorkspaceSplitter
           class="wbs-page__content"
           primary-size="25%"
@@ -106,7 +121,10 @@
             <section class="wbs-page__tree-panel">
               <div class="wbs-page__panel-heading">
                 <div>
-                  <strong>WBS 结构</strong>
+                  <span>
+                    <ArtSvgIcon icon="ri:apps-2-line" />
+                    <strong>WBS 结构</strong>
+                  </span>
                   <small>选择节点查看并维护工作包属性</small>
                 </div>
                 <div class="wbs-page__tree-actions">
@@ -131,27 +149,20 @@
                   />
                 </div>
               </div>
-              <ElInput
-                v-model="state.keyword"
-                clearable
-                placeholder="搜索编码、名称或责任人"
-                aria-label="搜索 WBS 节点"
-                class="wbs-page__keyword"
-              >
-                <template #prefix><ArtSvgIcon icon="ri:search-line" /></template>
-              </ElInput>
-              <button
-                type="button"
-                class="wbs-page__all"
-                :class="{ 'is-current': !selectedNode }"
-                @click="selectedNode = null"
-              >
-                <span aria-hidden="true"><ArtSvgIcon icon="ri:apps-2-line" /></span>
-                <span
-                  ><strong>全部节点</strong><small>{{ filteredNodes.length }} 个节点</small></span
+              <div class="wbs-page__filter-row">
+                <ElInput
+                  v-model="state.keyword"
+                  clearable
+                  placeholder="搜索编码、名称或责任人"
+                  aria-label="搜索 WBS 节点"
+                  class="wbs-page__keyword"
                 >
-                <ArtSvgIcon v-if="!selectedNode" icon="ri:check-line" aria-hidden="true" />
-              </button>
+                  <template #prefix>
+                    <ArtSvgIcon icon="ri:search-line" />
+                  </template>
+                </ElInput>
+              </div>
+
               <ElScrollbar class="wbs-page__tree-scroll">
                 <div v-if="!filteredNodes.length" class="wbs-page__tree-empty">
                   <ArtEmptyState
@@ -162,12 +173,12 @@
                         ? archivedNodeCount && !state.showArchived
                           ? `当前版本有 ${archivedNodeCount} 个节点已归档，勾选“显示已归档”即可查看并恢复。`
                           : '调整搜索关键字或取消筛选条件后再试。'
-                        : '通过“复制标准模板”或“新增根节点”开始分解项目范围。'
+                        : '通过“套用模板”或“新增根节点”开始分解项目范围。'
                     "
                   />
                 </div>
                 <ElTree
-                  v-if="state.viewMode === 'tree' && filteredNodes.length"
+                  v-if="filteredNodes.length"
                   ref="treeRef"
                   node-key="id"
                   draggable
@@ -182,18 +193,19 @@
                   @node-click="selectNode"
                   @node-drop="handleDrop"
                 >
-                  <template #default="{ data }"
-                    ><div class="wbs-tree-node"
-                      ><span class="wbs-tree-node__icon" aria-hidden="true"
-                        ><ArtSvgIcon icon="ri:folder-3-line" /></span
+                  <template #default="{ data }">
+                    <div class="wbs-tree-node"
+                      ><span class="wbs-tree-node__icon" aria-hidden="true">
+                        <ArtSvgIcon icon="ri:folder-3-line" /> </span
                       ><span class="wbs-tree-node__code">{{ data.wbs_code }}</span
                       ><span
                         class="wbs-tree-node__name"
                         :class="{ 'is-disabled': data.status !== 'active' }"
                         :title="data.name"
                         >{{ data.name }}</span
-                      ><ElTag v-if="data.is_milestone" size="small" type="warning">里程碑</ElTag
-                      ><ElTag v-if="data.status === 'archived'" size="small" type="info"
+                      >
+                      <ElTag v-if="data.is_milestone" size="small" type="warning">里程碑</ElTag>
+                      <ElTag v-if="data.status === 'archived'" size="small" type="info"
                         >已归档</ElTag
                       ><span class="wbs-tree-node__actions">
                         <ArtIconButton
@@ -227,18 +239,15 @@
                             :disabled="!editable"
                             @click.stop="deleteNode(data)"
                           />
-                        </template> </span></div
-                  ></template>
+                        </template>
+                      </span>
+                    </div>
+                  </template>
                 </ElTree>
-                <ArtTable
-                  v-else-if="filteredNodes.length"
-                  :data="filteredNodes"
-                  :columns="tableColumns"
-                  row-key="id"
-                  :pagination="false"
-                  @row-click="selectNode"
-                />
               </ElScrollbar>
+              <small class="wbs-page__tree-summary" aria-live="polite">
+                全部节点({{ filteredNodes.length }} 个节点)
+              </small>
             </section>
           </template>
           <section class="wbs-page__detail-panel">
@@ -266,8 +275,8 @@
                 >编辑节点</ElButton
               >
             </div>
-            <template v-if="selectedNode"
-              ><ElAlert
+            <template v-if="selectedNode">
+              <ElAlert
                 v-if="selectedNode.status === 'archived'"
                 type="info"
                 :closable="false"
@@ -289,49 +298,66 @@
                 :show-submit="false"
                 disabled
                 class="wbs-form"
-              /><ElCheckbox v-model="selectedNode.is_milestone" disabled>标记为里程碑</ElCheckbox>
+              />
+              <ElCheckbox v-model="selectedNode.is_milestone" disabled>标记为里程碑</ElCheckbox>
               ><div class="wbs-links"
-                ><strong>交付物与关联</strong
-                ><p
+                ><strong>交付物与关联</strong>
+                <p
                   >交付物 {{ deliverablesForSelected.length }} 项 · 业务关联
                   {{ linksForSelected.length }} 项</p
-                ><ElTag v-for="link in linksForSelected" :key="link.id" size="small" class="mr-1">{{
+                >
+                <ElTag v-for="link in linksForSelected" :key="link.id" size="small" class="mr-1">{{
                   link.business_type
-                }}</ElTag></div
-              ><div class="wbs-boundaries"
-                ><strong>范围边界</strong
-                ><div
+                }}</ElTag>
+              </div>
+              <div class="wbs-boundaries"
+                ><strong>范围边界</strong>
+                <div
                   v-for="type in ['included', 'excluded']"
                   :key="type"
                   class="wbs-boundaries__row"
-                  ><span>{{ type === 'included' ? '包含' : '不包含' }}</span
-                  ><ElInput
+                  ><span>{{ type === 'included' ? '包含' : '不包含' }}</span>
+                  <ElInput
                     v-model="boundaryDraft[type as 'included' | 'excluded']"
                     size="small"
                     :disabled="!editable"
                     :placeholder="
                       type === 'included' ? '输入本版本包含的工作范围' : '输入明确排除的工作范围'
                     "
-                  /><ElButton
+                  />
+                  <ElButton
                     v-auth="'PmWbs:ManageScope'"
                     size="small"
                     :disabled="!editable"
                     @click="saveBoundary(type as 'included' | 'excluded')"
                     >保存</ElButton
-                  ></div
-                ></div
-              ></template
-            >
+                  >
+                </div>
+              </div>
+            </template>
+            <div v-else class="wbs-page__detail-empty">
+              <ArtEmptyState
+                size="compact"
+                title="尚未选择工作节点"
+                :description="
+                  filteredNodes.length
+                    ? '从左侧结构树选择节点后，在这里查看并维护工作包属性。'
+                    : '当前筛选条件下没有可查看的节点，请调整搜索关键字或筛选条件后再试。'
+                "
+              />
+            </div>
           </section>
         </ArtWorkspaceSplitter>
       </ArtSectionCard>
       <WbsNodeDialog ref="nodeDialogRef" :on-submit="saveNodeFromDialog" />
+      <WbsTemplateApplyDialog ref="templateApplyRef" @success="handleTemplateApplied" />
+      <WbsTemplateManager ref="templateManagerRef" />
     </div>
   </ArtPermissionGuard>
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted, reactive, ref } from 'vue'
+  import { computed, onMounted, reactive, ref, watch } from 'vue'
   import { useArtFeedback } from '@/hooks/core/useArtFeedback'
   import {
     ElButton,
@@ -340,8 +366,6 @@
     ElInput,
     ElMessage,
     ElOption,
-    ElRadioButton,
-    ElRadioGroup,
     ElSelect,
     ElScrollbar,
     ElTag,
@@ -356,7 +380,6 @@
   import ArtSectionCard from '@/components/core/surfaces/art-section-card/index.vue'
   import ArtEmptyState from '@/components/core/feedback/art-empty-state/index.vue'
   import ArtWorkspaceSplitter from '@/components/core/layouts/art-workspace-splitter/index.vue'
-  import ArtTable from '@/components/core/tables/art-table/index.vue'
   import ArtIconButton from '@/components/core/widget/art-icon-button/index.vue'
   import ArtTreeExpandToggle from '@/components/core/widget/art-tree-expand-toggle/index.vue'
   import ArtSvgIcon from '@/components/core/base/art-svg-icon/index.vue'
@@ -373,11 +396,9 @@
     type WbsTreeNode
   } from './wbs-model'
   import {
-    copyWbsTemplate,
     createWbsVersion,
     fetchWbsWorkspace,
     listWbsProjects,
-    listWbsTemplates,
     listWbsVersions,
     saveWbsBoundary,
     saveWbsNodes,
@@ -388,10 +409,20 @@
   } from '@pm/api/wbs'
   import type { WbsNode, WbsWorkspace } from '@pm/types/wbs'
   import WbsNodeDialog, { type WbsNodeDialogOpenData } from './modules/wbs-node-dialog.vue'
+  import WbsTemplateApplyDialog, {
+    type WbsTemplateApplyOpenData
+  } from './modules/wbs-template-apply-dialog.vue'
+  import WbsTemplateManager from './modules/wbs-template-manager.vue'
 
   defineOptions({ name: 'PmWbs' })
   interface WbsNodeDialogExpose {
     handleOpen: (data: WbsNodeDialogOpenData) => Promise<void>
+  }
+  interface WbsTemplateApplyDialogExpose {
+    handleOpen: (data: WbsTemplateApplyOpenData) => Promise<void>
+  }
+  interface WbsTemplateManagerExpose {
+    handleOpen: () => Promise<void>
   }
   const declaredPermissionCodes = [
     'PmWbs:Archive',
@@ -416,7 +447,6 @@
     keyword: '',
     milestonesOnly: false,
     showArchived: false,
-    viewMode: 'tree' as 'tree' | 'table',
     loading: false,
     error: null as Error | null,
     workspace: {
@@ -429,6 +459,8 @@
   })
   const selectedNode = ref<WbsNode | null>(null)
   const nodeDialogRef = ref<WbsNodeDialogExpose>()
+  const templateApplyRef = ref<WbsTemplateApplyDialogExpose>()
+  const templateManagerRef = ref<WbsTemplateManagerExpose>()
   const { confirmAction, confirmDelete } = useArtFeedback()
   const boundaryDraft = reactive<{ included: string; excluded: string }>({
     included: '',
@@ -449,8 +481,6 @@
       cancelled: '已取消',
       superseded: '历史版本'
     })[status ?? 'draft'] ?? '未建立'
-  const nodeStatusLabel = (status: WbsNode['status']) =>
-    ({ active: '有效', disabled: '停用', archived: '已归档' })[status] ?? status
   const filteredNodes = computed(() =>
     state.workspace.nodes.filter(
       (node) =>
@@ -466,17 +496,15 @@
     () => state.workspace.nodes.filter((node) => node.status === 'archived').length
   )
   const filteredTree = computed(() => buildWbsTree(filteredNodes.value))
-  const tableColumns = [
-    { prop: 'wbs_code', label: '编码', width: 110 },
-    { prop: 'name', label: '工作名称', minWidth: 180 },
-    { prop: 'responsible_person', label: '责任人', width: 100 },
-    {
-      prop: 'status',
-      label: '状态',
-      width: 80,
-      formatter: (row: WbsNode) => nodeStatusLabel(row.status)
-    }
-  ]
+  watch(
+    filteredNodes,
+    (nodes) => {
+      if (selectedNode.value && !nodes.some((node) => node.id === selectedNode.value?.id)) {
+        selectedNode.value = null
+      }
+    },
+    { flush: 'post' }
+  )
   const nodeFormItems = computed<FormItem[]>(() => [
     { label: '工作名称', key: 'name', type: 'input', props: { maxlength: 160 } },
     { label: '工作内容描述', key: 'description', type: 'textarea', props: { rows: 2 } },
@@ -717,15 +745,18 @@
     await transitionWbs(state.workspace.version.id, action)
     await loadWorkspace()
   }
-  async function copyTemplate() {
+  async function openTemplateApply() {
     if (!state.workspace.version || !state.projectId) return
-    const templates = await listWbsTemplates()
-    const template = templates[0]
-    if (!template) {
-      ElMessage.info('暂无可用 WBS 模板')
-      return
-    }
-    await copyWbsTemplate(state.projectId, state.workspace.version.id, template.id)
+    await templateApplyRef.value?.handleOpen({
+      projectId: state.projectId,
+      versionId: state.workspace.version.id,
+      versionLabel: `V${state.workspace.version.version_no} · ${statusLabel(state.workspace.version.status)}`
+    })
+  }
+  async function openTemplateManager() {
+    await templateManagerRef.value?.handleOpen()
+  }
+  async function handleTemplateApplied() {
     await loadWorkspace()
   }
   async function handleImport(rows: Array<Record<string, unknown>>) {
@@ -777,11 +808,13 @@
     overflow: hidden;
     background: var(--art-bg-color);
   }
+
   .wbs-page__project {
     flex: 0 1 260px;
     width: 260px;
     min-width: 150px;
   }
+
   .wbs-page__topbar {
     display: grid;
     flex: 0 0 auto;
@@ -789,39 +822,68 @@
     padding-bottom: var(--art-space-1);
     background: var(--art-bg-color);
   }
+
   .wbs-page__version {
     width: 190px;
   }
+
   .wbs-page__version-summary,
   .wbs-page__actions {
     display: flex;
-    flex-wrap: nowrap;
     gap: var(--art-space-3);
     align-items: center;
     min-width: 0;
   }
+
+  .wbs-page__actions {
+    justify-content: space-between;
+    min-height: 44px;
+    padding: 4px var(--art-space-2);
+    border: 1px solid var(--el-border-color-lighter);
+    border-radius: var(--el-border-radius-base);
+    box-sizing: border-box;
+  }
+
+  .wbs-page__selectors,
+  .wbs-page__management-actions {
+    display: flex;
+    flex: 0 0 auto;
+    gap: var(--art-space-3);
+    align-items: center;
+  }
+
+  .wbs-page__management-actions {
+    margin-left: auto;
+  }
+
   .wbs-page__version-summary div {
     display: grid;
     min-width: 0;
   }
+
   .wbs-page__version-summary small {
     color: var(--el-text-color-secondary);
   }
+
   .wbs-page__status {
     width: 10px;
     height: 10px;
     border-radius: 50%;
     background: var(--el-color-info);
   }
+
   .wbs-page__status.is-draft {
     background: var(--el-color-warning);
   }
+
   .wbs-page__status.is-approved {
     background: var(--el-color-success);
   }
+
   .wbs-page__status.is-submitted {
     background: var(--el-color-primary);
   }
+
   .wbs-page__workspace {
     display: flex;
     flex-direction: column;
@@ -830,55 +892,69 @@
     max-height: 100%;
     overflow: hidden;
   }
+
   .wbs-page__workspace :deep(.art-section-card__scrollbar),
   .wbs-page__workspace
     :deep(.art-section-card__scrollbar > .el-scrollbar__wrap > .el-scrollbar__view) {
     min-height: 0;
   }
-  .wbs-page__workspace :deep(.art-section-card__scrollbar),
-  .wbs-page__workspace
-    :deep(.art-section-card__scrollbar > .el-scrollbar__wrap > .el-scrollbar__view),
+
   .wbs-page__workspace :deep(.art-section-card__body) {
     display: grid;
     flex: 1 1 0%;
-    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
     min-height: 0;
     height: auto;
     overflow: hidden;
   }
-  @media (height <= 820px) {
-    .wbs-page {
-      height: auto;
-      min-height: var(--art-full-height);
-      max-height: none;
-      overflow: visible;
-    }
-    .wbs-page__workspace {
-      flex: 0 0 auto;
-      max-height: none;
-    }
-    .wbs-page__workspace :deep(.art-section-card__body) {
-      grid-template-rows: auto auto minmax(360px, 1fr);
-    }
-  }
+
   .wbs-page__filters {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--art-space-3);
+    display: grid;
+    grid-template-columns: minmax(260px, calc(25% - 8px)) minmax(0, 1fr);
+    column-gap: 16px;
     align-items: center;
     padding-top: var(--art-space-1);
     background: var(--default-box-color);
     margin-bottom: var(--art-space-3);
   }
-  .wbs-page__keyword {
-    width: min(360px, 100%);
+
+  .wbs-page__filter-options {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    min-height: 36px;
+    padding: 0 var(--art-space-2);
+    border: 1px solid var(--el-border-color-lighter);
+    border-radius: var(--el-border-radius-base);
+    box-sizing: border-box;
   }
+
+  .wbs-page__filter-row {
+    display: flex;
+    flex: 0 0 auto;
+    gap: var(--art-space-2);
+    align-items: center;
+    min-width: 0;
+  }
+
+  .wbs-page__filter-row > strong {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .wbs-page__keyword {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
+
   .wbs-page__content {
     min-height: 0;
     height: auto;
     flex: 1 1 0%;
     overflow: hidden;
   }
+
   .wbs-page__tree-panel,
   .wbs-page__detail-panel {
     min-width: 0;
@@ -888,6 +964,7 @@
     padding: var(--art-space-3) var(--art-space-4);
     background: var(--default-box-color);
   }
+
   .wbs-page__tree-panel {
     display: flex;
     flex-direction: column;
@@ -896,10 +973,12 @@
     border-radius: var(--el-border-radius-base);
     overflow: hidden;
   }
+
   .wbs-page__detail-panel {
     border: 1px solid var(--el-border-color-lighter);
     border-radius: var(--el-border-radius-base);
   }
+
   .wbs-page__panel-title {
     display: flex;
     justify-content: space-between;
@@ -907,9 +986,17 @@
     color: var(--el-text-color-secondary);
     border-bottom: 1px solid var(--el-border-color-lighter);
   }
+
+  .wbs-page__detail-empty {
+    display: grid;
+    place-items: center;
+    min-height: 200px;
+  }
+
   .wbs-page__panel-title strong {
     color: var(--el-text-color-primary);
   }
+
   .wbs-page__panel-heading {
     display: flex;
     align-items: flex-start;
@@ -918,55 +1005,43 @@
     padding-bottom: var(--art-space-3);
     border-bottom: 1px solid var(--el-border-color-lighter);
   }
+
   .wbs-page__panel-heading > div:first-child {
     display: grid;
     gap: 3px;
     min-width: 0;
   }
+
   .wbs-page__panel-heading strong {
     color: var(--el-text-color-primary);
   }
+
   .wbs-page__panel-heading small {
     color: var(--el-text-color-secondary);
     font-size: 12px;
   }
+
   .wbs-page__tree-actions {
     display: flex;
     flex: 0 0 auto;
     gap: 2px;
   }
-  .wbs-page__all {
-    display: grid;
-    grid-template-columns: 36px minmax(0, 1fr) 18px;
-    gap: 10px;
-    align-items: center;
-    width: 100%;
-    min-height: 58px;
-    padding: 8px 10px;
-    font: inherit;
-    color: var(--el-text-color-regular);
-    text-align: left;
-    cursor: pointer;
-    background: var(--art-gray-100);
-    border: 1px solid transparent;
-    border-radius: var(--el-border-radius-base);
-    transition:
-      background-color var(--art-motion-duration-fast),
-      border-color var(--art-motion-duration-fast),
-      box-shadow var(--art-motion-duration-fast);
-  }
+
   .wbs-page__all:hover,
   .wbs-page__all.is-current {
     background: color-mix(in srgb, var(--theme-color) 9%, var(--default-box-color));
     border-color: color-mix(in srgb, var(--theme-color) 22%, transparent);
   }
+
   .wbs-page__all.is-current {
     box-shadow: inset 3px 0 0 var(--theme-color);
   }
+
   .wbs-page__all:focus-visible {
     outline: 2px solid var(--theme-color);
     outline-offset: 2px;
   }
+
   .wbs-page__all > span:first-child {
     display: grid;
     place-items: center;
@@ -976,18 +1051,22 @@
     background: var(--default-box-color);
     border-radius: var(--el-border-radius-base);
   }
+
   .wbs-page__all > span:nth-child(2) {
     display: grid;
     min-width: 0;
   }
+
   .wbs-page__all strong {
     color: var(--el-text-color-primary);
   }
+
   .wbs-page__all small {
     margin-top: 2px;
     font-size: 11px;
     color: var(--el-text-color-secondary);
   }
+
   .wbs-page__tree-scroll {
     flex: 1;
     min-height: 0;
@@ -997,14 +1076,31 @@
       min-height: 36px;
     }
   }
+
+  .wbs-page__tree-summary {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    min-height: 32px;
+    padding: 0 var(--art-space-3);
+    color: var(--el-text-color-secondary);
+    background: var(--art-gray-100);
+    border: 1px solid var(--el-border-color-lighter);
+    border-radius: var(--el-border-radius-base);
+    box-sizing: border-box;
+    user-select: none;
+  }
+
   .wbs-page__tree-empty {
     display: grid;
     place-items: center;
     min-height: 200px;
   }
+
   .wbs-form__archived {
     margin-top: var(--art-space-3);
   }
+
   .wbs-tree-node {
     position: relative;
     display: grid;
@@ -1015,25 +1111,30 @@
     min-width: 0;
     padding-right: 0;
   }
+
   .wbs-tree-node__icon {
     display: grid;
     place-items: center;
     color: var(--el-text-color-secondary);
   }
+
   .wbs-tree-node__code {
     color: var(--theme-color);
     font-family: var(--el-font-family);
     font-size: 12px;
   }
+
   .wbs-tree-node__name {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+
   .wbs-tree-node__name.is-disabled {
     color: var(--el-text-color-placeholder);
     text-decoration: line-through;
   }
+
   .wbs-tree-node__actions {
     position: absolute;
     top: 50%;
@@ -1047,34 +1148,41 @@
     transform: translateY(-50%);
     transition: opacity var(--art-motion-duration-fast);
   }
+
   .wbs-tree-node:hover .wbs-tree-node__actions,
   .wbs-tree-node:focus-within .wbs-tree-node__actions {
     opacity: 1;
     pointer-events: auto;
   }
+
   @media (hover: none) {
     .wbs-tree-node__actions {
       opacity: 1;
       pointer-events: auto;
     }
   }
+
   .wbs-form {
     padding-top: var(--art-space-3);
   }
+
   .wbs-form__grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--art-space-3);
   }
+
   .wbs-links {
     margin-top: var(--art-space-4);
     padding-top: var(--art-space-3);
     border-top: 1px solid var(--el-border-color-lighter);
   }
+
   .wbs-links p {
     color: var(--el-text-color-secondary);
     font-size: 12px;
   }
+
   .wbs-boundaries {
     display: grid;
     gap: var(--art-space-2);
@@ -1082,33 +1190,51 @@
     padding-top: var(--art-space-3);
     border-top: 1px solid var(--el-border-color-lighter);
   }
+
   .wbs-boundaries__row {
     display: grid;
     grid-template-columns: 48px minmax(0, 1fr) auto;
     gap: var(--art-space-2);
     align-items: center;
   }
+
   .w-full {
     width: 100%;
   }
-  @media (width <= 1360px) {
+
+  @media (width <=1360px) {
     .wbs-page__actions {
       flex-wrap: wrap;
     }
   }
-  @media (width <= 900px) {
+
+  @media (width <=900px) {
     .wbs-page {
       padding: 0;
       overflow: hidden;
     }
+
     .wbs-page__project,
     .wbs-page__version {
       width: 100%;
     }
+
+    .wbs-page__filters {
+      grid-template-columns: 1fr;
+      row-gap: var(--art-space-2);
+    }
+
+    .wbs-page__actions,
+    .wbs-page__selectors,
+    .wbs-page__management-actions {
+      flex-wrap: wrap;
+    }
+
     .wbs-page__content {
       height: auto;
       overflow: visible;
     }
+
     .wbs-page__tree-panel,
     .wbs-page__detail-panel {
       flex: 1 1 0;
@@ -1116,9 +1242,11 @@
       border: 1px solid var(--el-border-color-lighter);
       border-radius: var(--el-border-radius-base);
     }
+
     .wbs-page__actions {
       flex-wrap: wrap;
     }
+
     .wbs-form__grid {
       grid-template-columns: 1fr;
     }

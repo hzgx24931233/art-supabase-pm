@@ -90,6 +90,7 @@
         data.mode === 'edit'
           ? '更新工作包属性，保存后同步到当前草稿版本。'
           : '填写工作包信息，保存后加入当前草稿版本。',
+      subtitleIcon: 'ri:information-line',
       titleIcon: 'ri:node-tree',
       size: 'md',
       confirmText: data.mode === 'edit' ? '保存节点' : '新增节点',

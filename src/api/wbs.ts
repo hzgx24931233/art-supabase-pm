@@ -5,6 +5,9 @@ import type {
   WbsNode,
   WbsScopeBoundary,
   WbsTemplate,
+  WbsTemplateNode,
+  WbsTemplateSavePayload,
+  WbsTemplateSaveResult,
   WbsVersion,
   WbsWorkspace
 } from '@pm/types/wbs'
@@ -94,29 +97,68 @@ export async function saveWbsNodes(
   })
 }
 
-export async function listWbsTemplates(): Promise<WbsTemplate[]> {
+export async function listWbsTemplates(
+  options: { includeDisabled?: boolean } = {}
+): Promise<WbsTemplate[]> {
   const result = await responseHandle<WbsTemplate[]>(
-    () =>
-      supabase
+    () => {
+      const query = supabase
         .from('pm_wbs_template')
-        .select('id,name,category,description,node_count')
-        .eq('enabled', true)
+        .select('id,name,category,description,enabled,node_count,update_time')
         .order('category')
-        .order('name'),
+        .order('name')
+      return options.includeDisabled ? query : query.eq('enabled', true)
+    },
     { showErrorMessage: true, breakReturn: true, convertToCamel: false }
   )
   return result.data ?? []
 }
 
-export async function copyWbsTemplate(projectId: string, versionId: string, templateId: string) {
+export async function listWbsTemplateNodes(templateId: string): Promise<WbsTemplateNode[]> {
+  const result = await responseHandle<WbsTemplateNode[]>(
+    () =>
+      supabase
+        .from('pm_wbs_template_node')
+        .select('*')
+        .eq('template_id', templateId)
+        .order('sort_order')
+        .order('wbs_code'),
+    { showErrorMessage: true, breakReturn: true, convertToCamel: false }
+  )
+  return result.data ?? []
+}
+
+export async function saveWbsTemplate(
+  payload: WbsTemplateSavePayload
+): Promise<WbsTemplateSaveResult> {
+  const result = await responseHandle<WbsTemplateSaveResult | null>(
+    () =>
+      supabase.rpc('pm_save_wbs_template', {
+        p_template: payload.template,
+        p_nodes: payload.nodes
+      }),
+    { showMessage: true, breakReturn: true, message: 'WBS 模板已保存', convertToCamel: false }
+  )
+  if (!result.data) throw new Error('WBS 模板保存未返回结果')
+  return result.data
+}
+
+export async function deleteWbsTemplate(templateId: string) {
   return responseHandle(
+    () => supabase.rpc('pm_delete_wbs_template', { p_template_id: templateId }),
+    { showMessage: true, breakReturn: true, message: 'WBS 模板已删除' }
+  )
+}
+
+export async function copyWbsTemplate(projectId: string, versionId: string, templateId: string) {
+  return responseHandle<number>(
     () =>
       supabase.rpc('pm_copy_wbs_template', {
         p_project_id: projectId,
         p_version_id: versionId,
         p_template_id: templateId
       }),
-    { showMessage: true, breakReturn: true, message: 'WBS 模板已复制', convertToCamel: false }
+    { showMessage: true, breakReturn: true, message: 'WBS 模板已套用', convertToCamel: false }
   )
 }
 
